@@ -1,0 +1,55 @@
+from netmiko import ConnectHandler
+from netmiko.ssh_exception import NetMikoTimeoutException, NetMikoAuthenticationException
+
+def connect_and_check_ports(ip_or_dns, username, password):
+    # הגדרת פרטי החיבור
+    device = {
+        'device_type': 'cisco_ios_telnet',
+        'host': ip_or_dns,
+        'username': username,
+        'password': password,
+    }
+
+    try:
+        # ניסיון חיבור דרך Telnet
+        connection = ConnectHandler(**device)
+        print("החיבור דרך Telnet הצליח")
+    except (NetMikoTimeoutException, NetMikoAuthenticationException):
+        print("החיבור דרך Telnet נכשל, מנסה ב-SSH")
+        device['device_type'] = 'cisco_ios'
+        
+        try:
+            # ניסיון חיבור דרך SSH
+            connection = ConnectHandler(**device)
+            print("החיבור דרך SSH הצליח")
+        except (NetMikoTimeoutException, NetMikoAuthenticationException):
+            print("החיבור נכשל ב-Telnet וב-SSH")
+            return None
+
+    # הרצת הפקודה לבדוק את הסטטוס של הפורטים
+    output = connection.send_command("show interface status")
+    connection.disconnect()
+    
+    # ספירה של כמה פורטים למעלה
+    active_ports = sum(1 for line in output.splitlines() if "connected" in line.lower())
+    
+    return active_ports
+
+if __name__ == "__main__":
+    # קבלת כתובת ה-IP, שם משתמש וסיסמה מהמשתמש
+    ip_or_dns = input("הכנס את כתובת ה-IP או ה-DNS של המכשיר: ")
+    username = input("הכנס שם משתמש: ")
+    password = input("הכנס סיסמה: ")
+
+    # אם המשתמש לא סיפק שם משתמש או סיסמה, ננסה עם ברירת מחדל
+    if not username:
+        username = 'nmtg'
+    if not password:
+        password = 'NRSFHn31'
+
+    active_ports = connect_and_check_ports(ip_or_dns, username, password)
+    
+    if active_ports is not None:
+        print(f"נמצאו {active_ports} פורטים פעילים במכשיר.")
+    else:
+        print("לא הצלחנו להתחבר למכשיר.")
